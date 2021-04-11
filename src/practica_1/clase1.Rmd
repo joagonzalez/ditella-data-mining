@@ -1,0 +1,154 @@
+---
+title: "Clase 1 Práctica Data Mining - MiM"
+output: html_notebook
+---
+
+## Preeliminares e instalación de librerias
+
+Verificamos que estamos en la ruta correcta
+```{r}
+getwd()
+```
+
+Creamos una función para cargar una librería instalando antes en caso de que esta
+no exista:
+```{r}
+dynamic_require <- function(package) {
+    if (!require(package, character.only = TRUE)) {
+        install.packages(package, dependencies = TRUE)
+        library(package, character.only = TRUE)
+    }
+}
+```
+
+Importamos las librerías/paquetes que vamos a utilizar:
+```{r}
+dynamic_require("data.table")
+dynamic_require("glue")
+dynamic_require("ggplot2")
+```
+
+Digresion: ¿qué hace la librería glue?
+```{r}
+x <- 1
+print(glue("x es igual a {x}"))
+```
+
+
+## Carga de Datos
+
+Recordemos la función definida en clase para cargar datos desde un csv:
+
+```{r}
+load_csv_data <- function(csv_file, sample_ratio = 1, drop_cols = NULL,
+                          sel_cols = NULL) {
+    dt <- fread(csv_file, header = TRUE, sep = ",", stringsAsFactors = TRUE,
+                na.strings = "", drop = drop_cols, select = sel_cols,
+                showProgress = TRUE)
+
+    if (sample_ratio < 1) {
+        sample_size <- as.integer(sample_ratio * nrow(dt))
+        dt <- dt[sample(.N, sample_size)]
+    }
+
+    setcolorder(dt, sort(colnames(dt)))
+
+    return(dt)
+}
+```
+
+Cargamos uno de los datasets de entrenamiento:
+```{r}
+csv_file <- "../../../R/code/competition-data/train_1.csv"
+df <- load_csv_data(csv_file, sample_ratio = 1)
+```
+
+Veamos si hemos respetado el orden de las columnas
+```{r}
+colnames(df)
+```
+
+- ¿Cómo podemos definir el target?
+```{r}
+head(df$Label_max_played_dsi)
+```
+Con un booleano casteado a enteros
+```{r}
+df[, Label := as.numeric(Label_max_played_dsi == 3)]
+sample(df$Label, 5)
+```
+Sigamos explorando el dataset:
+
+- ¿Cuántas observaciones tenemos?
+```{r}
+dim(df)
+```
+- ¿Qué estructura (tipos) tienen los datos?
+```{r}
+str(df)
+```
+
+- ¿Hay balanceo de clases?
+```{r}
+table(df$Label)
+prop.table(table(df$Label))
+```
+- ¿Cómo levantamos solo una muestra de 10% de una única columna?
+```{r}
+df_sample <- load_csv_data(csv_file, sample_ratio = 0.1, sel_cols = c("Label_max_played_dsi"))
+dim(df_sample)
+prop.table(table(df_sample$Label))
+```
+### Ejercicio 1
+...
+
+## EDA
+
+```{r}
+ggplot(as.data.frame(table(df$categorical_6)), aes(x=Var1, y = Freq)) + geom_bar(stat="identity")
+```
+### Ejercicio 2
+...
+
+## Transformaciones (preprocesamiento)
+
+- ¿Tienen contenido informativo aquellas variable con nula o cuasi-nula varianza?
+```{r}
+str(df)
+```
+
+```{r}
+table(df$traffic_type)
+```
+
+- Valores nulos o faltantes: ¿cómo encontrarlos?
+```{r}
+na_prop <- sapply(df, function(x) sum(is.na(x)) / length(x))
+df_na <- (data.frame(na_prop))
+df_na
+df_na <- df_na[df_na$na_prop > 0.7, , drop = FALSE]
+df_na
+```
+- Creación de data sintética
+```{r}
+df_toy <- data.table(A = rep(1:3, each=4), B = rep(1:4, each=3), C = rep(1:2, 6), key = "A,B")
+df_toy
+duplicated(df_toy)
+```
+
+## Feature Engineering
+
+- Creemos una variable de conteo con la cantidad de apariciones de cada país
+```{r}
+df[, country_count := .N, by = country]
+head(df[, c("country", "country_count")])
+```
+- Creemos una variable binaria que indica si un usuario es de tipo "acreedor"
+```{r}
+df[, creditor := ((soft_positive + hard_positive) - (soft_negative + hard_negative)) > 0]
+tail(df[, c("creditor", "soft_positive", "hard_positive", "soft_negative", "hard_negative")])
+```
+
+### Ejercicio 3
+
+...
